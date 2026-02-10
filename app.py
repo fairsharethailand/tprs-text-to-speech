@@ -6,7 +6,7 @@ import uuid
 import random
 
 # 1. ตั้งค่าหน้าเว็บ
-st.set_page_config(page_title="TPRS Magic Wheel V58.2", layout="wide")
+st.set_page_config(page_title="TPRS Magic Wheel V58.3", layout="wide")
 
 # 2. Session State
 if 'display_text' not in st.session_state:
@@ -25,32 +25,48 @@ PAST_TO_INF = {
 }
 
 def is_present_perfect(predicate):
-    """เช็คว่าเป็น Perfect Tense (ต้องมี V3 ตามหลัง) หรือเป็น Have กริยาแท้"""
     words = predicate.lower().split()
     if len(words) >= 2 and words[0] in ['have', 'has', 'had']:
-        # ถ้าคำที่สองลงท้าย ed หรืออยู่ในลิสต์กริยาช่อง 2/3 (ในที่นี้อนุโลมใช้ PAST_TO_INF เช็คเบื้องต้น)
-        # หรือถ้ามีคำมากกว่า 2 คำและไม่ใช่ noun/adj ทั่วไป 
-        # แต่เพื่อความแม่นยำตามโจทย์: ถ้ามีแค่ have + noun จะถือว่าเป็นกริยาแท้
         v2 = words[1]
         if v2.endswith('ed') or v2 in PAST_TO_INF or v2 in ['been', 'done', 'gone', 'seen', 'eaten']:
             return True
     return False
 
-def is_past_form(predicate):
+def check_tense_type(predicate):
+    """ส่งคืน 'past' หรือ 'present' หรือ 'unknown' สำหรับกริยาตัวนั้นๆ"""
     words = predicate.split()
-    if not words: return False
+    if not words: return "unknown"
     v = words[0].lower().strip()
-    return v in PAST_TO_INF or v.endswith("ed")
+    
+    # เช็คว่าเป็นอดีตหรือไม่ (ลงท้าย ed หรืออยู่ในลิสต์ช่อง 2 ที่ไม่ใช่พวก Zero Change)
+    if v.endswith("ed") or v in ["went", "ate", "saw", "bought", "did", "drank", "slept", "wrote", "came", "ran", "met", "spoke", "took", "found", "gave", "thought", "brought", "told", "made"]:
+        return "past"
+    # เช็คว่าเป็นปัจจุบันหรือไม่ (เติม s/es หรือเป็นกริยาช่อง 1 ปกติ)
+    if v.endswith("s") or v.endswith("es") or v in ["go", "eat", "see", "buy", "do", "drink", "sleep", "write", "come", "run", "meet", "speak", "take", "find", "give", "think", "bring", "tell", "make"]:
+        return "present"
+    return "unknown"
 
 def get_auxiliary(subject, pred_target, pred_other):
-    # ถ้าเป็น Perfect Tense (มี V3) ไม่ต้องใช้ Do/Does/Did
+    # ถ้าเป็น Perfect Tense ไม่ต้องใช้ Do/Does/Did
     if is_present_perfect(pred_target):
         return None 
     
-    # ถ้าเป็น Have/Has/Had ที่เป็นกริยาแท้ หรือกริยาอดีตอื่นๆ
-    if is_past_form(pred_target) or is_past_form(pred_other):
+    # --- ใหม่: Logic การสรุป Tense จากทั้งสองช่อง ---
+    tense_target = check_tense_type(pred_target)
+    tense_other = check_tense_type(pred_other)
+    
+    # 1. ถ้าตัวใดตัวหนึ่งเป็น Past ให้สรุปว่าเป็น Past (ใช้ Did)
+    if tense_target == "past" or tense_other == "past":
         return "Did"
-        
+    
+    # 2. ถ้าตัวใดตัวหนึ่งเป็น Present ให้สรุปว่าเป็น Present (ใช้ Do/Does)
+    if tense_target == "present" or tense_other == "present":
+        s = subject.lower().strip()
+        if 'and' in s or s in ['i', 'you', 'we', 'they'] or (s.endswith('s') and s not in ['james', 'charles', 'boss']):
+            return "Do"
+        return "Does"
+    
+    # 3. กรณี Default (เช่น ใส่คำกลางๆ มาทั้งคู่) ให้ยึด Present เป็นหลัก
     s = subject.lower().strip()
     if 'and' in s or s in ['i', 'you', 'we', 'they'] or (s.endswith('s') and s not in ['james', 'charles', 'boss']):
         return "Do"
@@ -62,8 +78,10 @@ def to_infinitive(predicate, other_predicate):
     v = words[0].lower().strip()
     rest = " ".join(words[1:])
     
-    # ถ้าเป็น Have/Has/Had กริยาแท้ หรือกริยาอดีต
-    if is_past_form(predicate) or is_past_form(other_predicate) or v in ['has', 'have']:
+    # ตรวจสอบ Tense โดยรวม
+    is_past = (check_tense_type(predicate) == "past" or check_tense_type(other_predicate) == "past")
+    
+    if is_past or v in ['had', 'has', 'have']:
         if v in ['had', 'has', 'have']: inf_v = "have"
         elif v in PAST_TO_INF: inf_v = PAST_TO_INF[v]
         elif v.endswith("ed"):
@@ -71,7 +89,7 @@ def to_infinitive(predicate, other_predicate):
             else: inf_v = v[:-2]
         else: inf_v = v
     else:
-        # กรณี Present ทั่วไป
+        # กรณี Present ปกติ (ตัด s/es)
         if v.endswith("es"):
             for suffix in ['sses', 'ches', 'shes', 'xes']:
                 if v.endswith(suffix): 
@@ -99,44 +117,36 @@ def build_logic(q_type, data):
         return f"{parts[0].capitalize()} {s} {' '.join(parts[1:])}".strip().replace("  ", " ")
 
     if q_type == "Statement": return main_sent
-    
     if q_type == "Negative":
         if has_be_verb(pred_trick) or is_present_perfect(pred_trick):
             parts = pred_trick.split()
             return f"No, {subj_trick} {parts[0]} not {' '.join(parts[1:])}."
         aux = get_auxiliary(subj_trick, pred_trick, pred_real)
         return f"No, {subj_trick} {aux.lower()} not {to_infinitive(pred_trick, pred_real)}."
-
     if q_type == "Yes-Q":
         if has_be_verb(pred_real) or is_present_perfect(pred_real): return swap_front(subj_real, pred_real) + "?"
         aux = get_auxiliary(subj_real, pred_real, pred_trick)
         return f"{aux} {subj_real} {to_infinitive(pred_real, pred_trick)}?"
-
     if q_type == "No-Q":
         if has_be_verb(pred_trick) or is_present_perfect(pred_trick): return swap_front(subj_trick, pred_trick) + "?"
         aux = get_auxiliary(subj_trick, pred_trick, pred_real)
         return f"{aux} {subj_trick} {to_infinitive(pred_trick, pred_real)}?"
-
     if q_type == "Either/Or":
         if s2 != "-" and s1.lower().strip() != s2.lower().strip():
             if has_be_verb(pred_real) or is_present_perfect(pred_real):
-                v_f = pred_real.split()[0].capitalize()
-                v_r = " ".join(pred_real.split()[1:])
+                v_f = pred_real.split()[0].capitalize(); v_r = " ".join(pred_real.split()[1:])
                 return f"{v_f} {subj_real} or {subj_trick} {v_r}?"
             aux = get_auxiliary(subj_real, pred_real, pred_trick)
             return f"{aux} {subj_real} or {subj_trick} {to_infinitive(pred_real, pred_trick)}?"
         else:
             p_alt = p2 if p2 != "-" else "something else"
-            if has_be_verb(pred_real) or is_present_perfect(pred_real):
-                return f"{swap_front(subj_real, pred_real)} or {p_alt}?"
+            if has_be_verb(pred_real) or is_present_perfect(pred_real): return f"{swap_front(subj_real, pred_real)} or {p_alt}?"
             aux = get_auxiliary(subj_real, pred_real, p_alt)
             return f"{aux} {subj_real} {to_infinitive(pred_real, p_alt)} or {to_infinitive(p_alt, pred_real)}?"
-
     if q_type in ["Who", "What", "Where", "When", "How", "Why"]:
         if q_type == "Who": return f"Who {pred_real}?"
         if has_be_verb(pred_real) or is_present_perfect(pred_real):
-            parts = pred_real.split()
-            return f"{q_type} {parts[0]} {subj_real} {' '.join(parts[1:])}?"
+            parts = pred_real.split(); return f"{q_type} {parts[0]} {subj_real} {' '.join(parts[1:])}?"
         aux = get_auxiliary(subj_real, pred_real, pred_trick)
         return f"{q_type} {aux.lower()} {subj_real} {to_infinitive(pred_real, pred_trick)}?"
     return main_sent
@@ -147,8 +157,7 @@ def play_voice(text):
             tts = gTTS(text=text, lang='en')
             filename = f"voice_{uuid.uuid4()}.mp3"
             tts.save(filename)
-            with open(filename, "rb") as f:
-                b64 = base64.b64encode(f.read()).decode()
+            with open(filename, "rb") as f: b64 = base64.b64encode(f.read()).decode()
             st.session_state.audio_key += 1
             audio_html = f'<audio autoplay key="{st.session_state.audio_key}"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>'
             st.markdown(audio_html, unsafe_allow_html=True)
@@ -156,16 +165,16 @@ def play_voice(text):
         except: pass
 
 # --- UI Layout ---
-st.title("🎡 TPRS Magic Wheel V58.2")
+st.title("🎡 TPRS Magic Wheel V58.3 (Tense Sync)")
 
-main_input = st.text_input("📝 Main Sentence", "He has a car.")
+main_input = st.text_input("📝 Main Sentence", "He cuts the cake.")
 col1, col2 = st.columns(2)
 with col1:
     s_r = st.text_input("Subject (R):", "He")
-    p_r = st.text_input("Predicate (R):", "has a car")
+    p_r = st.text_input("Predicate (R):", "cuts the cake")
 with col2:
     s_t = st.text_input("Subject (T):", "-")
-    p_t = st.text_input("Predicate (T):", "has a bike")
+    p_t = st.text_input("Predicate (T):", "eats the bread") 
 
 data_packet = {'s1':s_r, 'p1':p_r, 's2':s_t, 'p2':p_t, 'main_sent':main_input}
 st.divider()
