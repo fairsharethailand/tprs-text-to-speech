@@ -1,0 +1,1 @@
+This sounds like a fantastic tool! TPRS (Teaching Proficiency through Reading and Storytelling) is incredibly effective, but keeping track of circling (asking repetitive questions to establish meaning) can definitely be mentally taxing for a teacher.
