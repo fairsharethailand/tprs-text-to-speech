@@ -144,4 +144,39 @@ def play_voice(text):
         except: pass
 
 # --- UI Layout ---
-st.title("
+st.title("🎡 TPRS Magic Wheel V58 (Grammar Focused)")
+
+main_input = st.text_input("📝 Main Sentence", "Tom has eaten an apple.")
+
+col1, col2 = st.columns(2)
+with col1:
+    s_r = st.text_input("Subject (R):", "Tom")
+    p_r = st.text_input("Predicate (R):", "has eaten an apple")
+with col2:
+    s_t = st.text_input("Subject (T):", "-")
+    p_t = st.text_input("Predicate (T):", "has eaten a banana")
+
+data_packet = {'s1':s_r, 'p1':p_r, 's2':s_t, 'p2':p_t, 'main_sent':main_input}
+st.divider()
+
+clicked_type = None
+if st.button("🎰 RANDOM TRICK", use_container_width=True, type="primary"):
+    clicked_type = random.choice(["Statement", "Negative", "Yes-Q", "No-Q", "Either/Or", "Who", "What", "Where", "When", "How", "Why"])
+
+row1 = st.columns(5)
+btns = [("📢 Statement", "Statement"), ("🚫 Negative", "Negative"), ("✅ Yes-Q", "Yes-Q"), ("❌ No-Q", "No-Q"), ("⚖️ Either/Or", "Either/Or")]
+for i, (label, mode) in enumerate(btns):
+    if row1[i].button(label, use_container_width=True): clicked_type = mode
+
+row2 = st.columns(6)
+whs = ["Who", "What", "Where", "When", "How", "Why"]
+for i, wh in enumerate(whs):
+    if row2[i].button(f"❓ {wh}", use_container_width=True): clicked_type = wh
+
+if clicked_type:
+    final_text = build_logic(clicked_type, data_packet)
+    st.session_state.display_text = f"🎯 {clicked_type}: {final_text}"
+    play_voice(final_text)
+
+if st.session_state.display_text:
+    st.info(st.session_state.display_text)
