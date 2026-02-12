@@ -61,7 +61,6 @@ def check_tense_type(predicate):
     words = predicate.split()
     if not words: return "unknown"
     v = words[0].lower().strip()
-    # เช็กว่าเป็น Past หรือไม่จาก list และการลงท้าย ed
     if v.endswith("ed") or v in PAST_TO_INF:
         return "past"
     return "present"
@@ -77,24 +76,17 @@ def conjugate_singular(predicate):
     return f"{v} {rest}".strip()
 
 def get_auxiliary(subject, pred_target, pred_other):
-    # 1. ข้ามถ้าเป็น Present Perfect
     if is_present_perfect(pred_target): return None 
-    
-    # 2. เช็กว่าเป็น Past หรือไม่ ถ้าใช่ใช้ Did
     if check_tense_type(pred_target) == "past" or check_tense_type(pred_other) == "past":
         return "Did"
     
-    # 3. Logic สำหรับ Present Simple (Do/Does)
     s_clean = subject.lower().strip()
     s_words = s_clean.split()
     found_irregular = any(word in IRR_PL for word in s_words)
     
-    # เงื่อนไขการใช้ Do (พหูพจน์ / I, You, We, They)
     if (found_irregular or 'and' in s_clean or s_clean in ['i', 'you', 'we', 'they'] or 
         (s_clean.endswith('s') and s_clean not in ['james', 'charles', 'boss'])):
         return "Do"
-    
-    # เงื่อนไขการใช้ Does (เอกพจน์)
     return "Does"
 
 def to_infinitive(predicate, other_predicate):
@@ -102,7 +94,6 @@ def to_infinitive(predicate, other_predicate):
     if not words: return ""
     v = words[0].lower().strip(); rest = " ".join(words[1:])
     
-    # แปลงกริยากลับเป็นช่อง 1 เสมอเมื่อมี auxiliary
     if v in ['had', 'has', 'have']:
         inf_v = "have"
     elif v in PAST_TO_INF:
@@ -134,9 +125,12 @@ def build_logic(q_type, data):
 
     def swap(s, p):
         pts = p.split()
+        if not pts: return ""
         return f"{pts[0].capitalize()} {s} {' '.join(pts[1:])}".strip()
 
     if q_type == "Statement": return data['main_sent']
+    
     if q_type == "Negative":
         if has_be_verb(pred_t) or is_present_perfect(pred_t):
-            return f"No, {subj_t} {pred
+            parts = pred_t.split()
+            return f"No, {subj_t} {
