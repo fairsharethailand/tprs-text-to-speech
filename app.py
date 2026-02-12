@@ -140,4 +140,70 @@ def build_logic(q_type, data):
             return f"{q_type} {words[0]} {subj_r} {' '.join(words[1:])}?"
         if words[0] in ['have', 'has', 'had'] and not is_present_perfect(pred_r):
             aux = get_auxiliary(subj_r, pred_r, pred_t)
-            return f"{
+            return f"{q_type} {aux.lower()} {subj_r} {to_infinitive(pred_r, pred_t)}?"
+        if has_be_verb(pred_r) or is_present_perfect(pred_r):
+            first_v = pred_r.split()[0]
+            rest_v = " ".join(pred_r.split()[1:])
+            return f"{q_type} {first_v} {subj_r} {rest_v}?"
+        aux = get_auxiliary(subj_r, pred_r, pred_t)
+        return f"{q_type} {aux.lower()} {subj_r} {to_infinitive(pred_r, pred_t)}?"
+
+    if q_type == "Either/Or":
+        if s2 != "-" and s1.lower().strip() != s2.lower().strip():
+            if has_be_verb(pred_r):
+                first_v = pred_r.split()[0].capitalize()
+                rest_v = " ".join(pred_r.split()[1:])
+                return f"{first_v} {subj_r} or {subj_t} {rest_v}?"
+            aux = get_auxiliary(subj_r, pred_r, pred_t)
+            return f"{aux} {subj_r} or {subj_t} {to_infinitive(pred_r, pred_t)}?"
+        else:
+            p_alt = p2 if p2 != "-" else "something else"
+            if has_be_verb(pred_r):
+                return f"{swap(subj_r, pred_r)} or {p_alt}?"
+            aux = get_auxiliary(subj_r, pred_r, p_alt)
+            return f"{aux} {subj_r} {to_infinitive(pred_r, p_alt)} or {to_infinitive(p_alt, pred_r)}?"
+    return data['main_sent']
+
+def play_voice(text):
+    if not text: return
+    try:
+        clean = text.split(":")[-1].strip().replace("🎯","")
+        tts = gTTS(text=clean, lang='en')
+        fn = f"v_{uuid.uuid4()}.mp3"
+        tts.save(fn)
+        with open(fn, "rb") as f: 
+            b64 = base64.b64encode(f.read()).decode()
+        st.session_state.audio_key += 1
+        audio_tag = f"""<audio autoplay key="{st.session_state.audio_key}"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>"""
+        st.markdown(audio_tag, unsafe_allow_html=True)
+        os.remove(fn)
+    except: pass
+
+# --- UI ---
+st.title("🎡 Speak V1.0")
+m_in = st.text_input("📝 Main Sentence", "The children are making a cake.")
+c1, c2 = st.columns(2)
+with c1: sr, pr = st.text_input("Subject (R):", "The children"), st.text_input("Predicate (R):", "are making a cake")
+with c2: st_subj, pt = st.text_input("Subject (T):", "-"), st.text_input("Predicate (T):", "are making a bread")
+data = {'s1':sr, 'p1':pr, 's2':st_subj, 'p2':pt, 'main_sent':m_in}
+
+st.divider()
+clicked = None
+if st.button("🎰 RANDOM TRICK", use_container_width=True, type="primary"):
+    clicked = random.choice(["Statement", "Yes-Q", "No-Q", "Negative", "Either/Or", "Who", "What", "Where", "When", "How", "Why"])
+
+r1 = st.columns(5)
+btns1 = [("📢 Statement", "Statement"), ("✅ Yes-Q", "Yes-Q"), ("❌ No-Q", "No-Q"), ("🚫 Negative", "Negative"), ("⚖️ Either/Or", "Either/Or")]
+for i, (l, m) in enumerate(btns1):
+    if r1[i].button(l, use_container_width=True): clicked = m
+
+r2 = st.columns(6)
+for i, wh in enumerate(["Who", "What", "Where", "When", "How", "Why"]):
+    if r2[i].button(f"❓ {wh}", use_container_width=True): clicked = wh
+
+if clicked:
+    res = build_logic(clicked, data)
+    st.session_state.display_text = f"🎯 {clicked}: {res}"
+    play_voice(res)
+
+if st.session_state.display_text: st.info(st.session_state.display_text)
