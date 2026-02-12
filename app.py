@@ -81,11 +81,8 @@ def to_infinitive(predicate, other_predicate):
     words = predicate.split()
     if not words: return ""
     v = words[0].lower().strip(); rest = " ".join(words[1:])
-    
-    # แก้ไข: ถ้าเป็น have/has/had ให้คืนค่าเป็น have เสมอเมื่อทำเป็น infinitive
     if v in ['have', 'has', 'had']:
         return f"have {rest}".strip()
-        
     is_past = (check_tense_type(predicate) == "past" or check_tense_type(other_predicate) == "past")
     if is_past:
         inf_v = PAST_TO_INF.get(v, v[:-2] if v.endswith("ed") else v)
@@ -139,23 +136,35 @@ def build_logic(q_type, data):
 
     if q_type in ["What", "Where", "When", "How", "Why"]:
         words = pred_r.lower().split()
-        # 1. เช็คโครงสร้าง be + V-ing
         if len(words) >= 2 and words[0] in ['is', 'am', 'are', 'was', 'were'] and words[1].endswith('ing'):
             return f"{q_type} {words[0]} {subj_r} {' '.join(words[1:])}?"
-            
-        # 2. เช็คโครงสร้าง Verb to have (ไม่ใช่ Present Perfect)
         if words[0] in ['have', 'has', 'had'] and not is_present_perfect(pred_r):
             aux = get_auxiliary(subj_r, pred_r, pred_t)
             return f"{q_type} {aux.lower()} {subj_r} {to_infinitive(pred_r, pred_t)}?"
-
-        # 3. กรณีอื่นๆ (Modal หรือ Be ตัวเดียว)
         if has_be_verb(pred_r) or is_present_perfect(pred_r):
             return f"{q_type} {pred_r.split()[0]} {subj_r} {' '.join(pred_r.split()[1:])}?"
-        
-        # 4. กริยาทั่วไป
         aux = get_auxiliary(subj_r, pred_r, pred_t)
         return f"{q_type} {aux.lower()} {subj_r} {to_infinitive(pred_r, pred_t)}?"
 
     if q_type == "Either/Or":
         if s2 != "-" and s1.lower().strip() != s2.lower().strip():
-            if has_be_verb(pred_r): return f"{pred_r.split()[0].capitalize()} {subj
+            if has_be_verb(pred_r):
+                return f"{pred_r.split()[0].capitalize()} {subj_r} or {subj_t} {' '.join(pred_r.split()[1:])}?"
+            return f"{get_auxiliary(subj_r, pred_r, pred_t)} {subj_r} or {subj_t} {to_infinitive(pred_r, pred_t)}?"
+        else:
+            p_alt = p2 if p2 != "-" else "something else"
+            if has_be_verb(pred_r):
+                return f"{swap(subj_r, pred_r)} or {p_alt}?"
+            return f"{get_auxiliary(subj_r, pred_r, p_alt)} {subj_r} {to_infinitive(pred_r, p_alt)} or {to_infinitive(p_alt, pred_r)}?"
+    return data['main_sent']
+
+def play_voice(text):
+    if not text: return
+    try:
+        clean = text.split(":")[-1].strip().replace("🎯","")
+        tts = gTTS(text=clean, lang='en')
+        fn = f"v_{uuid.uuid4()}.mp3"
+        tts.save(fn)
+        with open(fn, "rb") as f: b64 = base64.b64encode(f.read()).decode()
+        st.session_state.audio_key += 1
+        st.markdown(f'<audio autoplay key="{st.session_state.audio_key}"><source src="data:audio/mp3;base64,{b64}" type="audio/
