@@ -9,13 +9,28 @@ import json
 # 1. ตั้งค่าหน้าเว็บ
 st.set_page_config(page_title="Speak V1.0", layout="wide")
 
-# 2. Session State Initialization
-if 'display_text' not in st.session_state:
-    st.session_state.display_text = ""
-if 'audio_key' not in st.session_state:
-    st.session_state.audio_key = 0
+# --- UI Helper Functions (Callback) ---
+# ฟังก์ชันนี้จะทำงานทันทีที่กดปุ่ม "ก่อน" ที่หน้าเว็บจะโหลดใหม่ ทำให้ไม่เกิด Error
+def clear_text(key_name):
+    st.session_state[key_name] = ""
 
-# --- Grammar Logic (คงเดิมทั้งหมด) ---
+# 2. Session State Initialization (ตั้งค่าเริ่มต้น)
+# ต้องตั้งค่า Default ลงใน session_state ก่อนที่จะวาด Widget
+defaults = {
+    "m_input": "The children make a cake.",
+    "sr_input": "The children",
+    "pr_input": "make a cake",
+    "st_input": "-",
+    "pt_input": "make a bread",
+    "display_text": "",
+    "audio_key": 0
+}
+
+for key, default_val in defaults.items():
+    if key not in st.session_state:
+        st.session_state[key] = default_val
+
+# --- Grammar Logic ---
 def load_irregular_verbs():
     try:
         if os.path.exists('verbs.json'):
@@ -152,26 +167,18 @@ def play_voice(text):
         os.remove(fn)
     except: pass
 
-# --- UI Helper ---
-def clear_field(key):
-    """ฟังก์ชัน Callback สำหรับล้างค่าในช่องกรอกข้อมูล"""
-    st.session_state[key] = ""
-
 # --- UI Layout ---
 st.title("🎡 Speak V1.0")
 
 # 1. Main Sentence Row
 m_col1, m_col2 = st.columns([0.92, 0.08])
 with m_col1:
+    # สังเกตว่าเราไม่ใช้ value=... แต่ปล่อยให้ key ไปดึงค่าจาก session_state ที่เราตั้งไว้ข้างบนมาเอง
     m_in = st.text_input("📝 Main Sentence", key="m_input")
-    # ตั้งค่า Default ครั้งแรกถ้า session_state ว่าง
-    if "m_input" not in st.session_state or st.session_state.m_input == "":
-         if "initialized" not in st.session_state:
-             st.session_state.m_input = "The children make a cake."
-
 with m_col2:
     st.markdown("<br>", unsafe_allow_html=True)
-    st.button("🗑️", key="btn_m", on_click=clear_field, args=("m_input",))
+    # ใช้ on_click เพื่อเรียกฟังก์ชัน clear_text โดยส่งชื่อ key เข้าไป
+    st.button("🗑️", key="btn_m", on_click=clear_text, args=("m_input",))
 
 c1, c2 = st.columns(2)
 
@@ -180,45 +187,34 @@ with c1:
     sr_col1, sr_col2 = st.columns([0.85, 0.15])
     with sr_col1:
         sr = st.text_input("Subject (R):", key="sr_input")
-        if "sr_input" not in st.session_state or st.session_state.sr_input == "":
-            if "initialized" not in st.session_state: st.session_state.sr_input = "The children"
     with sr_col2:
         st.markdown("<br>", unsafe_allow_html=True)
-        st.button("🗑️", key="btn_sr", on_click=clear_field, args=("sr_input",))
+        st.button("🗑️", key="btn_sr", on_click=clear_text, args=("sr_input",))
 
     # Predicate (R)
     pr_col1, pr_col2 = st.columns([0.85, 0.15])
     with pr_col1:
         pr = st.text_input("Predicate (R):", key="pr_input")
-        if "pr_input" not in st.session_state or st.session_state.pr_input == "":
-            if "initialized" not in st.session_state: st.session_state.pr_input = "make a cake"
     with pr_col2:
         st.markdown("<br>", unsafe_allow_html=True)
-        st.button("🗑️", key="btn_pr", on_click=clear_field, args=("pr_input",))
+        st.button("🗑️", key="btn_pr", on_click=clear_text, args=("pr_input",))
 
 with c2:
     # Subject (T)
     st_col1, st_col2 = st.columns([0.85, 0.15])
     with st_col1:
         st_subj = st.text_input("Subject (T):", key="st_input")
-        if "st_input" not in st.session_state or st.session_state.st_input == "":
-            if "initialized" not in st.session_state: st.session_state.st_input = "-"
     with st_col2:
         st.markdown("<br>", unsafe_allow_html=True)
-        st.button("🗑️", key="btn_st", on_click=clear_field, args=("st_input",))
+        st.button("🗑️", key="btn_st", on_click=clear_text, args=("st_input",))
 
     # Predicate (T)
     pt_col1, pt_col2 = st.columns([0.85, 0.15])
     with pt_col1:
         pt = st.text_input("Predicate (T):", key="pt_input")
-        if "pt_input" not in st.session_state or st.session_state.pt_input == "":
-            if "initialized" not in st.session_state: st.session_state.pt_input = "make a bread"
     with pt_col2:
         st.markdown("<br>", unsafe_allow_html=True)
-        st.button("🗑️", key="btn_pt", on_click=clear_field, args=("pt_input",))
-
-# ป้องกันการทับค่าหลังจาก Init ครั้งแรก
-st.session_state.initialized = True
+        st.button("🗑️", key="btn_pt", on_click=clear_text, args=("pt_input",))
 
 # จัดเตรียม Data
 data = {'s1': sr, 'p1': pr, 's2': st_subj, 'p2': pt, 'main_sent': m_in}
